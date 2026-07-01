@@ -122,6 +122,17 @@ body {
   transition: all 0.2s ease;
 }
 
+.btn-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
 /* Inputs */
 .modern-input {
   background: rgba(255, 255, 255, 0.08);

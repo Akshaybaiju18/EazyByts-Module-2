@@ -21,6 +21,7 @@ export const useRealTimeStocks = (symbols: string[] = []) => {
 
   const handleStockUpdate = useCallback((data: StockUpdate[]) => {
     try {
+      console.log('Received stock update:', data);
       setStockPrices(prev => {
         const newPrices = new Map(prev);
         

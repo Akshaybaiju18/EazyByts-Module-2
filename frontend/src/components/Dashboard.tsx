@@ -52,7 +52,8 @@ const Dashboard: React.FC = () => {
         if (isMounted) {
           try {
             // Try to fetch from backend first
-            const stocksResponse = await axios.get('http://localhost:5000/api/stocks/multiple?symbols=AAPL,GOOGL,MSFT,TSLA,AMZN,NVDA');
+            const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const stocksResponse = await axios.get(`${API_BASE_URL}/api/stocks/multiple?symbols=AAPL,GOOGL,MSFT,TSLA,AMZN,NVDA`);
             
             // Transform Finnhub data to expected format
             const symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN', 'NVDA'];
@@ -70,7 +71,7 @@ const Dashboard: React.FC = () => {
             const token = localStorage.getItem('token');
             if (token) {
               try {
-                const portfolioResponse = await axios.get('http://localhost:5000/api/portfolio', {
+                const portfolioResponse = await axios.get(`${API_BASE_URL}/api/portfolio`, {
                   headers: { Authorization: `Bearer ${token}` }
                 });
                 
@@ -122,24 +123,31 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  // Update stocks with real-time data
+  // Update stocks with real-time data from WebSocket
   useEffect(() => {
-  if (!getPrice) return;
+    if (!getPrice) return;
 
-  const interval = setInterval(() => {
-    setStocks(prevStocks =>
-      prevStocks.map(stock => {
-        const realTimeData = getPrice(stock.symbol);
-        if (realTimeData?.price !== undefined && realTimeData.price !== stock.price) {
-          return { ...stock, price: realTimeData.price, change: realTimeData.price - stock.price };
-        }
-        return stock;
-      })
-    );
-  }, 3000);
+    const interval = setInterval(() => {
+      setStocks(prevStocks =>
+        prevStocks.map(stock => {
+          const realTimeData = getPrice(stock.symbol);
+          if (realTimeData?.price !== undefined && realTimeData.price !== stock.price) {
+            const priceChange = realTimeData.price - stock.price;
+            return { 
+              ...stock, 
+              price: realTimeData.price, 
+              change: priceChange 
+            };
+          }
+          return stock;
+        })
+      );
+    }, 1000); // Check for updates every second
 
-  return () => clearInterval(interval);
-}, [getPrice]);
+    return () => clearInterval(interval);
+  }, [getPrice]);
+
+  // Real-time updates will come from WebSocket connection
 
 
   const filteredStocks = stocks.filter(stock =>
@@ -265,7 +273,12 @@ const Dashboard: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Price</span>
-                  <span className="text-2xl font-bold text-white">${stock.price.toFixed(2)}</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-2xl font-bold text-white">${stock.price.toFixed(2)}</span>
+                    {getPrice(stock.symbol) && (
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex justify-between items-center">

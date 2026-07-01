@@ -7,15 +7,21 @@ export const buyStock = async (req, res) => {
   
   try {
     const userId = req.user.id;
-    const { symbol, quantity } = req.body;
+    const { symbol, quantity, price } = req.body;
     
     if (!symbol || !quantity || quantity <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid symbol or quantity' });
     }
     
-    // Get current stock price
-    const stockData = await getStockQuote(symbol.toUpperCase());
-    const currentPrice = stockData.c; // Finnhub current price
+    // Use provided price or get current stock price
+    let currentPrice;
+    if (price && price > 0) {
+      currentPrice = price;
+    } else {
+      const stockData = await getStockQuote(symbol.toUpperCase());
+      currentPrice = stockData.c; // Finnhub current price
+    }
+    
     const totalCost = currentPrice * quantity;
     
     await connection.beginTransaction();
@@ -56,13 +62,23 @@ export const buyStock = async (req, res) => {
     }
     
     // Record transaction
-    await connection.query(
+    const [result] = await connection.query(
       'INSERT INTO transactions (user_id, stock_symbol, transaction_type, quantity, price, total_amount) VALUES (?, ?, ?, ?, ?, ?)',
       [userId, symbol.toUpperCase(), 'buy', quantity, currentPrice, totalCost]
     );
     
     await connection.commit();
-    res.json({ success: true, message: 'Stock purchased successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Stock purchased successfully',
+      data: {
+        id: result.insertId,
+        symbol: symbol.toUpperCase(),
+        quantity,
+        price: currentPrice,
+        total: totalCost
+      }
+    });
     
   } catch (error) {
     await connection.rollback();
@@ -79,15 +95,21 @@ export const sellStock = async (req, res) => {
   
   try {
     const userId = req.user.id;
-    const { symbol, quantity } = req.body;
+    const { symbol, quantity, price } = req.body;
     
     if (!symbol || !quantity || quantity <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid symbol or quantity' });
     }
     
-    // Get current stock price
-    const stockData = await getStockQuote(symbol.toUpperCase());
-    const currentPrice = stockData.c;
+    // Use provided price or get current stock price
+    let currentPrice;
+    if (price && price > 0) {
+      currentPrice = price;
+    } else {
+      const stockData = await getStockQuote(symbol.toUpperCase());
+      currentPrice = stockData.c;
+    }
+    
     const totalValue = currentPrice * quantity;
     
     await connection.beginTransaction();
@@ -115,13 +137,23 @@ export const sellStock = async (req, res) => {
     await connection.query('UPDATE users SET balance = balance + ? WHERE id = ?', [totalValue, userId]);
     
     // Record transaction
-    await connection.query(
+    const [result] = await connection.query(
       'INSERT INTO transactions (user_id, stock_symbol, transaction_type, quantity, price, total_amount) VALUES (?, ?, ?, ?, ?, ?)',
       [userId, symbol.toUpperCase(), 'sell', quantity, currentPrice, totalValue]
     );
     
     await connection.commit();
-    res.json({ success: true, message: 'Stock sold successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Stock sold successfully',
+      data: {
+        id: result.insertId,
+        symbol: symbol.toUpperCase(),
+        quantity,
+        price: currentPrice,
+        total: totalValue
+      }
+    });
     
   } catch (error) {
     await connection.rollback();
@@ -139,19 +171,20 @@ export const getTransactionHistory = async (req, res) => {
     
     const [rows] = await pool.query(`
       SELECT 
-        stock_symbol,
-        transaction_type,
+        id,
+        stock_symbol as symbol,
+        transaction_type as action,
         quantity,
         price,
-        total_amount,
-        created_at
+        total_amount as total,
+        created_at as timestamp
       FROM transactions 
       WHERE user_id = ? 
       ORDER BY created_at DESC 
       LIMIT 50
     `, [userId]);
     
-    res.json({ success: true, data: rows });
+    res.json(rows); // Return array directly as frontend expects
   } catch (error) {
     console.error('Transaction history error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch transaction history' });
